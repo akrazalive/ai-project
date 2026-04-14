@@ -2,78 +2,31 @@
 __pycache__/
 *.py[cod]
 *.pyo
-*.pyd
-.Python
-*.egg
-*.egg-info/
-dist/
-build/
-eggs/
-parts/
-var/
-sdist/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
-*.so
 .env
 .venv
 env/
 venv/
-ENV/
+*.egg-info/
+dist/
+build/
 
 # Django
 *.log
-local_settings.py
 db.sqlite3
-db.sqlite3-journal
 media/
 staticfiles/
 
-# FastAPI / uvicorn
-*.pid
-
-# Vector DB
-chroma_db/
-faiss_index/
-
-# Node / React
+# Node
 node_modules/
 dist/
-.next/
-.nuxt/
 .cache/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Env files
-.env
-.env.local
-.env.*.local
-*.env
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Docker
-*.override.yml
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# ML models
-*.pkl
-*.joblib
-*.h5
-*.pt
-*.bin

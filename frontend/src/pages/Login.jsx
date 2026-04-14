@@ -1,46 +1,44 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 
 export default function Login() {
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [form, setForm] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const nav = useNavigate()
 
   const submit = async e => {
     e.preventDefault()
+    setError('')
     try {
-      const { data } = await axios.post('/api/auth/token/', form)
+      const { data } = await axios.post('/api/token/', form)
       localStorage.setItem('token', data.access)
       nav('/')
     } catch {
-      setError('Invalid credentials')
+      setError('Invalid credentials. Admin access only.')
     }
   }
 
   return (
-    <div style={styles.wrap}>
-      <form onSubmit={submit} style={styles.card}>
-        <h2>AI Job Search</h2>
-        <p style={{ color: '#666', marginBottom: 16 }}>Sign in to your account</p>
-        {error && <p style={styles.error}>{error}</p>}
-        <input style={styles.input} placeholder="Email" type="email"
-          value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-        <input style={styles.input} placeholder="Password" type="password"
+    <div style={s.wrap}>
+      <form onSubmit={submit} style={s.card}>
+        <h2 style={{ marginBottom: 6 }}>Job Search</h2>
+        <p style={{ color: '#888', fontSize: 13, marginBottom: 20 }}>Admin access only</p>
+        {error && <p style={s.error}>{error}</p>}
+        <input style={s.input} placeholder="Username" autoFocus
+          value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} required />
+        <input style={s.input} placeholder="Password" type="password"
           value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
-        <button style={styles.btn} type="submit">Login</button>
-        <p style={{ marginTop: 12, textAlign: 'center' }}>
-          No account? <Link to="/register">Register</Link>
-        </p>
+        <button style={s.btn} type="submit">Login</button>
       </form>
     </div>
   )
 }
 
-const styles = {
+const s = {
   wrap: { display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' },
-  card: { background: '#fff', padding: 32, borderRadius: 8, width: 360, boxShadow: '0 2px 12px #0001' },
+  card: { background: '#fff', padding: 32, borderRadius: 10, width: 340, boxShadow: '0 2px 16px #0002' },
   input: { display: 'block', width: '100%', padding: '10px 12px', margin: '8px 0', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 },
-  btn: { width: '100%', padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', marginTop: 8, fontSize: 15 },
-  error: { color: 'red', marginBottom: 8 },
+  btn: { width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', marginTop: 8, fontSize: 15 },
+  error: { color: '#dc2626', fontSize: 13, marginBottom: 10 },
 }
