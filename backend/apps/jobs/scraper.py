@@ -30,12 +30,10 @@ ALL_COUNTRIES = {
     "Canada":         {"geoId": "101174742", "label": "Canada",          "flag": "🇨🇦"},
     "Australia":      {"geoId": "101452733", "label": "Australia",       "flag": "🇦🇺"},
     "Germany":        {"geoId": "101282230", "label": "Germany",         "flag": "🇩🇪"},
-    "India":          {"geoId": "102713980", "label": "India",           "flag": "🇮🇳"},
-    "Pakistan":       {"geoId": "100554890", "label": "Pakistan",        "flag": "🇵🇰"},
-    "Netherlands":    {"geoId": "102890719", "label": "Netherlands",     "flag": "🇳🇱"},
-    "France":         {"geoId": "105015875", "label": "France",          "flag": "🇫🇷"},
-    "Singapore":      {"geoId": "102454443", "label": "Singapore",       "flag": "🇸🇬"},
-    "Remote":         {"geoId": "",          "label": "Worldwide",       "flag": "🌍"},
+    "Netherlands":    {"geoId": "102890719", "label": "Netherlands",     "flag": "🇱"},
+    "France":         {"geoId": "105015875", "label": "France",          "flag": "��"},
+    "Singapore":      {"geoId": "102454443", "label": "Singapore",       "flag": "��"},
+    "Remote":         {"geoId": "",          "label": "Worldwide",       "flag": "�"},
 }
 
 COUNTRY_KEYWORDS = {k: [] for k in ALL_COUNTRIES}
@@ -232,13 +230,20 @@ def scrape_indeed(role: str, location: str = "Gulf", flag: str = "🌍") -> list
 
 # ─── Main entry ──────────────────────────────────────────────────────────────
 
+EXCLUDED_COUNTRIES = {"india", "pakistan"}
+
+def is_excluded(job: dict) -> bool:
+    location = job.get("location", "").lower()
+    return any(ex in location for ex in EXCLUDED_COUNTRIES)
+
+
 def search_jobs(role: str, countries: list[str]) -> dict:
     all_jobs = []
     seen_urls = set()
 
     def add(jobs, region):
         for job in jobs:
-            if job["url"] and job["url"] not in seen_urls:
+            if job["url"] and job["url"] not in seen_urls and not is_excluded(job):
                 seen_urls.add(job["url"])
                 job["search_region"] = region
                 all_jobs.append(job)
