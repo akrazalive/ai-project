@@ -40,45 +40,33 @@ ALL_COUNTRIES = {
 
 COUNTRY_KEYWORDS = {k: [] for k in ALL_COUNTRIES}
 
+# Gulf flags lookup for non-LinkedIn scrapers
+GULF_FLAGS = {meta["label"]: meta["flag"] for meta in GULF_COUNTRIES.values()}
+GULF_FLAGS["Gulf"] = "🌍"
+
 
 def time_ago(iso_datetime: str) -> str:
-    """Convert ISO datetime string to '2 hrs ago', '45 mins ago' etc."""
     if not iso_datetime:
         return ""
     try:
         posted = datetime.fromisoformat(iso_datetime.replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
-        diff = now - posted
-        total_seconds = int(diff.total_seconds())
-        if total_seconds < 60:
-            return f"{total_seconds}s ago"
-        elif total_seconds < 3600:
-            return f"{total_seconds // 60}m ago"
-        elif total_seconds < 86400:
-            return f"{total_seconds // 3600}h ago"
-        else:
-            return f"{total_seconds // 86400}d ago"
+        diff = int((now - posted).total_seconds())
+        if diff < 60:    return f"{diff}s ago"
+        if diff < 3600:  return f"{diff // 60}m ago"
+        if diff < 86400: return f"{diff // 3600}h ago"
+        return f"{diff // 86400}d ago"
     except Exception:
         return iso_datetime
 
 
-def get_country_flag(location: str) -> str:
-    """Try to match a location string to a country flag."""
-    loc = location.lower()
-    for name, meta in ALL_COUNTRIES.items():
-        if name.lower() in loc or meta["label"].lower() in loc:
-            return meta["flag"]
-    return "🌐"
-
+# ─── LinkedIn ────────────────────────────────────────────────────────────────
 
 def scrape_linkedin(role: str, geo_id: str = "", location_label: str = "",
-                    remote: bool = False, country_flag: str = "🌐") -> list[dict]:
+                    flag: str = "🌐", remote: bool = False) -> list[dict]:
     params = {
-        "keywords": role,
-        "f_TPR": LAST_24H,
-        "position": 1,
-        "pageNum": 0,
-        "sortBy": "DD",
+        "keywords": role, "f_TPR": LAST_24H,
+        "position": 1, "pageNum": 0, "sortBy": "DD",
     }
     if remote:
         params["f_WT"] = "2"
@@ -89,7 +77,6 @@ def scrape_linkedin(role: str, geo_id: str = "", location_label: str = "",
             params["geoId"] = geo_id
 
     url = "https://www.linkedin.com/jobs/search?" + urllib.parse.urlencode(params)
-
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         resp.raise_for_status()
@@ -98,96 +85,192 @@ def scrape_linkedin(role: str, geo_id: str = "", location_label: str = "",
 
     soup = BeautifulSoup(resp.text, "html.parser")
     jobs = []
-
     for card in soup.select("div.base-card, li.jobs-search__results-list > div"):
         title_el    = card.select_one("h3.base-search-card__title, h3")
         company_el  = card.select_one("h4.base-search-card__subtitle, h4")
         location_el = card.select_one("span.job-search-card__location")
         link_el     = card.select_one("a.base-card__full-link, a[href*='/jobs/view/']")
         time_el     = card.select_one("time")
+        applicants_el = card.select_one("span.job-search-card__applicant-count, span[class*='applicant']")
+        easy_el     = card.select_one("span[class*='easy-apply'], span.base-search-card__benefits")
 
-        # applicant count — LinkedIn sometimes shows this in a <span>
-        applicants_el = card.select_one(
-            "span.job-search-card__applicant-count, "
-            "span[class*='applicant'], "
-            "figcaption.base-search-card__extra-info span"
-        )
-
-        # easy apply badge
-        easy_apply_el = card.select_one(
-            "span.job-posting-benefits__text, "
-            "li-icon[type='linkedin-bug'], "
-            "span[class*='easy-apply'], "
-            "span.base-search-card__benefits"
-        )
-
-        title     = title_el.get_text(strip=True)    if title_el    else ""
-        company   = company_el.get_text(strip=True)  if company_el  else ""
-        location  = location_el.get_text(strip=True) if location_el else location_label
-        link      = link_el.get("href", "").split("?")[0] if link_el else ""
-        posted_dt = time_el.get("datetime", "")      if time_el     else ""
+        title    = title_el.get_text(strip=True)    if title_el    else ""
+        company  = company_el.get_text(strip=True)  if company_el  else ""
+        location = location_el.get_text(strip=True) if location_el else location_label
+        link     = link_el.get("href", "").split("?")[0] if link_el else ""
+        posted   = time_el.get("datetime", "")      if time_el     else ""
         applicants = applicants_el.get_text(strip=True) if applicants_el else ""
-        easy_apply = bool(easy_apply_el and "easy" in easy_apply_el.get_text(strip=True).lower())
+        easy_apply = bool(easy_el and "easy" in easy_el.get_text(strip=True).lower())
+
+        if not title or not link:
+            continue
+        jobs.append({
+            "title": title, "company": company, "location": location,
+            "flag": flag, "url": link, "posted_at": posted,
+            "posted_ago": time_ago(posted), "applicants": applicants,
+            "easy_apply": easy_apply, "source": "LinkedIn",
+        })
+    return jobs
+
+
+# ─── NaukriGulf ──────────────────────────────────────────────────────────────
+
+def scrape_naukrigulf(role: str) -> list[dict]:
+    query = urllib.parse.quote_plus(role)
+    url = f"https://www.naukrigulf.com/{query.replace('+','-')}-jobs"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    jobs = []
+    for card in soup.select("div.jobsearch-SerpJobCard, article.job-card, div[class*='job-listing'], li[class*='job']"):
+        title_el   = card.select_one("a.job-title, h3 a, h2 a, a[class*='title']")
+        company_el = card.select_one("span.company-name, div[class*='company'], span[class*='company']")
+        loc_el     = card.select_one("span.location, span[class*='location'], li[class*='location']")
+        time_el    = card.select_one("span[class*='date'], span[class*='time'], li[class*='date']")
+
+        title   = title_el.get_text(strip=True)   if title_el   else ""
+        company = company_el.get_text(strip=True) if company_el else ""
+        location = loc_el.get_text(strip=True)    if loc_el     else "Gulf"
+        posted  = time_el.get_text(strip=True)    if time_el    else ""
+        link    = title_el.get("href", "")        if title_el   else ""
+        if link and not link.startswith("http"):
+            link = "https://www.naukrigulf.com" + link
 
         if not title or not link:
             continue
 
-        # derive flag from location string
-        flag = get_country_flag(location) or country_flag
-
+        flag = next((GULF_FLAGS[k] for k in GULF_FLAGS if k.lower() in location.lower()), "🌍")
         jobs.append({
-            "title":      title,
-            "company":    company,
-            "location":   location,
-            "flag":       flag,
-            "url":        link,
-            "posted_at":  posted_dt,
-            "posted_ago": time_ago(posted_dt),
-            "applicants": applicants,
-            "easy_apply": easy_apply,
-            "source":     "linkedin.com",
+            "title": title, "company": company, "location": location,
+            "flag": flag, "url": link, "posted_at": "",
+            "posted_ago": posted, "applicants": "",
+            "easy_apply": False, "source": "NaukriGulf",
         })
-
     return jobs
 
+
+# ─── Bayt.com ────────────────────────────────────────────────────────────────
+
+def scrape_bayt(role: str) -> list[dict]:
+    query = urllib.parse.quote_plus(role)
+    url = f"https://www.bayt.com/en/international/jobs/{query.replace('+','-')}-jobs/"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    jobs = []
+    for card in soup.select("li[class*='has-pointer-d'], div[class*='media-list-item']"):
+        title_el   = card.select_one("h2 a, h3 a, a[class*='job-name']")
+        company_el = card.select_one("b[class*='t-default'], span[class*='company']")
+        loc_el     = card.select_one("span[class*='location'], li[class*='location']")
+        time_el    = card.select_one("span[class*='date'], abbr[class*='timeago']")
+
+        title    = title_el.get_text(strip=True)   if title_el   else ""
+        company  = company_el.get_text(strip=True) if company_el else ""
+        location = loc_el.get_text(strip=True)     if loc_el     else "Gulf"
+        posted   = time_el.get_text(strip=True)    if time_el    else ""
+        link     = title_el.get("href", "")        if title_el   else ""
+        if link and not link.startswith("http"):
+            link = "https://www.bayt.com" + link
+
+        if not title or not link:
+            continue
+
+        flag = next((GULF_FLAGS[k] for k in GULF_FLAGS if k.lower() in location.lower()), "🌍")
+        jobs.append({
+            "title": title, "company": company, "location": location,
+            "flag": flag, "url": link, "posted_at": "",
+            "posted_ago": posted, "applicants": "",
+            "easy_apply": False, "source": "Bayt",
+        })
+    return jobs
+
+
+# ─── Indeed ──────────────────────────────────────────────────────────────────
+
+def scrape_indeed(role: str, location: str = "Gulf", flag: str = "🌍") -> list[dict]:
+    params = {"q": role, "l": location, "fromage": "1", "sort": "date"}
+    url = "https://www.indeed.com/jobs?" + urllib.parse.urlencode(params)
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    jobs = []
+    for card in soup.select("div.job_seen_beacon, div[class*='cardOutline'], td.resultContent"):
+        title_el   = card.select_one("h2.jobTitle a, a[id*='job_'], span[title]")
+        company_el = card.select_one("span.companyName, span[data-testid='company-name']")
+        loc_el     = card.select_one("div.companyLocation, div[data-testid='text-location']")
+        time_el    = card.select_one("span.date, span[data-testid='myJobsStateDate']")
+
+        title    = title_el.get_text(strip=True)   if title_el   else ""
+        company  = company_el.get_text(strip=True) if company_el else ""
+        location_str = loc_el.get_text(strip=True) if loc_el     else location
+        posted   = time_el.get_text(strip=True)    if time_el    else ""
+        href     = title_el.get("href", "")        if title_el   else ""
+        link     = ("https://www.indeed.com" + href) if href and not href.startswith("http") else href
+
+        if not title or not link:
+            continue
+        jobs.append({
+            "title": title, "company": company, "location": location_str,
+            "flag": flag, "url": link, "posted_at": "",
+            "posted_ago": posted, "applicants": "",
+            "easy_apply": False, "source": "Indeed",
+        })
+    return jobs
+
+
+# ─── Main entry ──────────────────────────────────────────────────────────────
 
 def search_jobs(role: str, countries: list[str]) -> dict:
     all_jobs = []
     seen_urls = set()
-    searched_labels = []
 
-    def add_jobs(jobs, label):
+    def add(jobs, region):
         for job in jobs:
-            if job["url"] not in seen_urls:
+            if job["url"] and job["url"] not in seen_urls:
                 seen_urls.add(job["url"])
-                job["search_region"] = label
+                job["search_region"] = region
                 all_jobs.append(job)
 
-    # 1. Gulf countries — always
+    # LinkedIn — Gulf countries
     for name, meta in GULF_COUNTRIES.items():
-        results = scrape_linkedin(role, geo_id=meta["geoId"],
-                                  location_label=meta["label"],
-                                  country_flag=meta["flag"])
-        add_jobs(results, f"Gulf – {name}")
-        searched_labels.append(name)
+        add(scrape_linkedin(role, geo_id=meta["geoId"],
+                            location_label=meta["label"], flag=meta["flag"]),
+            f"Gulf – {name}")
 
-    # 2. Worldwide remote — always
-    results = scrape_linkedin(role, remote=True, country_flag="🌍")
-    add_jobs(results, "Worldwide Remote")
-    searched_labels.append("Worldwide Remote")
+    # LinkedIn — Worldwide remote
+    add(scrape_linkedin(role, remote=True, flag="🌍"), "Worldwide Remote")
 
-    # 3. Extra countries user selected
+    # LinkedIn — extra countries
     for country in countries:
         if country in GULF_COUNTRIES:
             continue
         meta = ALL_COUNTRIES.get(country)
-        if not meta:
-            continue
-        results = scrape_linkedin(role, geo_id=meta["geoId"],
-                                  location_label=meta["label"],
-                                  country_flag=meta["flag"])
-        add_jobs(results, country)
-        searched_labels.append(country)
+        if meta:
+            add(scrape_linkedin(role, geo_id=meta["geoId"],
+                                location_label=meta["label"], flag=meta["flag"]),
+                country)
 
-    query = f'"{role}" — LinkedIn — last 24 hrs — {", ".join(searched_labels)}'
+    # NaukriGulf
+    add(scrape_naukrigulf(role), "NaukriGulf")
+
+    # Bayt
+    add(scrape_bayt(role), "Bayt")
+
+    # Indeed — UAE + Remote
+    add(scrape_indeed(role, "United Arab Emirates", "🇦🇪"), "Indeed – UAE")
+    add(scrape_indeed(role, "Remote", "🌍"), "Indeed – Remote")
+
+    query = f'"{role}" — LinkedIn + NaukriGulf + Bayt + Indeed — last 24 hrs'
     return {"query": query, "results": all_jobs}

@@ -120,34 +120,34 @@ function Section({ title, jobs }) {
 }
 
 function JobCard({ job }) {
+  const sourceColors = {
+    LinkedIn:    { bg: '#dbeafe', color: '#1e40af' },
+    NaukriGulf:  { bg: '#fef3c7', color: '#92400e' },
+    Bayt:        { bg: '#d1fae5', color: '#065f46' },
+    Indeed:      { bg: '#ede9fe', color: '#5b21b6' },
+  }
+  const sc = sourceColors[job.source] || { bg: '#f3f4f6', color: '#374151' }
+
   return (
     <div style={s.card}>
-      {/* top row: flag + location + time */}
+      {/* source badge + flag + time */}
       <div style={s.cardTop}>
-        <span style={s.flag}>{job.flag || '🌐'}</span>
-        <span style={s.location}>{job.location}</span>
-        <span style={s.timeAgo}>{job.posted_ago || job.posted_at}</span>
+        <span style={{ ...s.sourceBadge, background: sc.bg, color: sc.color }}>{job.source}</span>
+        <span style={s.flag}>{job.flag}</span>
+        {job.posted_ago && <span style={s.timeAgo}>{job.posted_ago}</span>}
       </div>
 
-      {/* title + company */}
       <h3 style={s.jobTitle}>{job.title}</h3>
       <p style={s.company}>{job.company}</p>
+      <p style={s.location}>📍 {job.location}</p>
 
-      {/* applicants */}
-      {job.applicants && (
-        <p style={s.applicants}>👥 {job.applicants}</p>
-      )}
+      {job.applicants && <p style={s.applicants}>👥 {job.applicants}</p>}
 
-      {/* bottom row: easy apply btn or external link */}
       <div style={s.cardBottom}>
         {job.easy_apply ? (
-          <a href={job.url} target="_blank" rel="noreferrer" style={s.easyApplyBtn}>
-            ⚡ Easy Apply
-          </a>
+          <a href={job.url} target="_blank" rel="noreferrer" style={s.easyApplyBtn}>⚡ Easy Apply</a>
         ) : (
-          <a href={job.url} target="_blank" rel="noreferrer" style={s.externalBtn}>
-            External Apply →
-          </a>
+          <a href={job.url} target="_blank" rel="noreferrer" style={s.externalBtn}>View Job →</a>
         )}
       </div>
     </div>
@@ -183,12 +183,28 @@ const s = {
   queryInfo: { fontSize: 12, color: '#888', marginBottom: 12 },
   code: { background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 },
   resultCount: { color: '#374151', fontSize: 14, fontWeight: 600, marginBottom: 20 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 },
-  card: { background: '#fff', padding: 18, borderRadius: 8, boxShadow: '0 1px 6px #0001' },
-  sourceTag: { background: '#f3f4f6', color: '#555', padding: '2px 8px', borderRadius: 10, fontSize: 11 },
-  dateTag: { color: '#888', fontSize: 11 },
-  jobTitle: { fontSize: 15, marginBottom: 4, lineHeight: 1.4 },
-  company: { color: '#555', fontSize: 13, marginBottom: 4 },
-  location: { color: '#888', fontSize: 12, marginBottom: 10 },
-  link: { color: '#2563eb', fontSize: 13, textDecoration: 'none', fontWeight: 500 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 },
+
+  // card
+  card: { background: '#fff', padding: 16, borderRadius: 10, boxShadow: '0 1px 6px #0001', display: 'flex', flexDirection: 'column', gap: 6 },
+  cardTop: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 },
+  sourceBadge: { padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
+  flag: { fontSize: 18 },
+  location: { color: '#555', fontSize: 12, flex: 1 },
+  timeAgo: { color: '#9ca3af', fontSize: 11, whiteSpace: 'nowrap' },
+  jobTitle: { fontSize: 15, fontWeight: 600, lineHeight: 1.4, color: '#111' },
+  company: { color: '#6b7280', fontSize: 13 },
+  applicants: { color: '#6b7280', fontSize: 12 },
+  cardBottom: { marginTop: 'auto', paddingTop: 10 },
+  easyApplyBtn: {
+    display: 'inline-block', padding: '6px 14px',
+    background: '#2563eb', color: '#fff',
+    borderRadius: 6, fontSize: 13, textDecoration: 'none', fontWeight: 600,
+  },
+  externalBtn: {
+    display: 'inline-block', padding: '6px 14px',
+    background: '#f3f4f6', color: '#374151',
+    borderRadius: 6, fontSize: 13, textDecoration: 'none', fontWeight: 500,
+    border: '1px solid #e5e7eb',
+  },
 }
